@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>KeratoScan AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="shell">
+    <aside>
+      <a class="brand" href="#"><span class="brandmark">K</span><span>KeratoScan<small>AI diagnostics</small></span></a>
+      <nav><button class="nav active" data-view="workspace">⌁ <span>New analysis</span></button><button class="nav" data-view="results">◫ <span>Results</span></button></nav>
+      <div class="side-bottom"><div class="status"><i></i><span><b id="device">Starting…</b><small>Compute engine</small></span></div><div class="model-list"><span>Image model <b id="image-status">—</b></span><span>Clinical model <b id="tabular-status">—</b></span></div></div>
+    </aside>
+    <main>
+      <header><div><p class="eyebrow">CLINICAL DECISION SUPPORT</p><h1>Corneal assessment</h1></div><div class="research">Research use only</div></header>
+      <section id="workspace" class="view active">
+        <div class="intro"><div><h2>Start a new analysis</h2><p>Combine corneal imaging with clinical parameters for an ensemble assessment.</p></div><span>01 / Upload</span></div>
+        <form id="analysis-form">
+          <section class="panel"><div class="panel-head"><div class="step">1</div><div><h3>Corneal imaging</h3><p>Add one or more available topography maps.</p></div><strong id="image-count">0 / 7 added</strong></div><div id="drop-grid" class="drop-grid"></div></section>
+          <section class="panel"><div class="panel-head"><div class="step">2</div><div><h3>Clinical parameters</h3><p>Upload a single-patient CSV matching the trained feature schema. <a href="/api/template.csv">Download template</a></p></div></div><label class="csv-drop"><input id="csv" type="file" accept=".csv" hidden><span class="file-icon">↟</span><span><b id="csv-name">Drop clinical CSV here</b><small id="csv-note">or click to browse · CSV up to 10 MB</small></span><button type="button">Choose file</button></label></section>
+          <section class="panel compact"><div><h3>Fusion balance</h3><p>Adjust how much each model contributes to the final assessment.</p></div><div class="weight"><div><span>Imaging</span><b id="image-weight-label">65%</b></div><input id="weight" type="range" min="0" max="100" value="65"><div class="ends"><span>Clinical <b id="tab-weight-label">35%</b></span><span>Imaging</span></div></div></section>
+          <div id="error" class="error" role="alert"></div><button id="analyze" class="primary" type="submit"><span>Run ensemble analysis</span><b>→</b></button>
+        </form>
+      </section>
+      <section id="results" class="view">
+        <div class="results-head"><div><p class="eyebrow">ANALYSIS COMPLETE</p><h2>Assessment summary</h2></div><button id="new-analysis" class="secondary">＋ New analysis</button></div>
+        <div class="result-hero"><div><span class="result-label">ENSEMBLE FINDING</span><h2 id="diagnosis">—</h2><p id="severity">—</p></div><div class="risk-ring" id="risk-ring"><div><b id="probability">0%</b><span>KC probability</span></div></div><div class="confidence"><span>MODEL CONFIDENCE</span><b id="confidence">—</b><small>Weighted agreement</small></div></div>
+        <div class="result-grid"><section class="panel"><p class="eyebrow">MODEL BREAKDOWN</p><div id="model-breakdown"></div></section><section class="panel"><p class="eyebrow">MODALITY ATTENTION</p><div id="modalities-chart" class="bars"></div></section></div>
+        <section class="panel"><p class="eyebrow">TOP CLINICAL DRIVERS</p><div id="features-chart" class="feature-grid"></div></section>
+        <div class="notice"><b>Important clinical note</b><span>This research system does not provide a medical diagnosis. Findings must be independently reviewed by a qualified ophthalmologist.</span></div>
+      </section>
+    </main>
+  </div><script src="/static/app.js"></script>
+</body></html>

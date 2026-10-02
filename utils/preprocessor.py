@@ -8,7 +8,6 @@ import torch
 from torchvision import transforms
 from PIL import Image
 import io
-import streamlit as st
 from typing import Optional, Tuple, Dict, List
 
 # ── ImageNet normalisation (standard for corneal images) ────────────────────
@@ -33,7 +32,8 @@ def preprocess_image(uploaded_file) -> Optional[torch.Tensor]:
         tensor = TRANSFORM(img).unsqueeze(0)  # [1, 3, 224, 224]
         return tensor
     except Exception as e:
-        st.error(f"Image preprocessing failed: {e}")
+        import warnings
+        warnings.warn(f"Image preprocessing failed: {e}")
         return None
 
 

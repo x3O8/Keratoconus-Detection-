@@ -1,114 +1,55 @@
-# KeratoScan AI — Keratoconus Detection Dashboard
+# Running the website
 
-A production-grade Streamlit dashboard for AI-assisted keratoconus detection using
-multi-modal ophthalmic image analysis fused with clinical tabular data.
+A local research website with real clinical and corneal-imaging inference. The React interface and FastAPI service run together at **http://127.0.0.1:8000**.
 
----
+## Start the website
 
-## Quick Start
+From the project directory:
 
-```bash
-# 1. Install dependencies
-pip install -r requirements.txt
-
-# 2. Launch
-streamlit run app.py
+```powershell
+python run.py
 ```
 
----
+Leave the terminal running. Both saved models load at startup. The website reconnects automatically after a temporary service interruption.
 
-## Image Modalities
+For a fresh environment, install dependencies and build the interface first:
 
-| Key   | Full Name                        |
-|-------|----------------------------------|
-| CT_A  | Corneal Thickness — Anterior     |
-| EC_A  | Epithelial Curvature — Anterior  |
-| EC_P  | Epithelial Curvature — Posterior |
-| Elv_A | Elevation Map — Anterior         |
-| Elv_P | Elevation Map — Posterior        |
-| Sag_A | Sagittal Curvature — Anterior    |
-| Sag_P | Sagittal Curvature — Posterior   |
-
-Missing modalities are substituted with zero tensors — partial inputs are supported.
-
----
-
-## Model Auto-Discovery
-
-The app scans the working directory (and subdirectories) for:
-
-- **`.pth` / `.pt`** → loaded as image model checkpoint  
-  Supports: `model_state_dict`, `state_dict`, or raw `OrderedDict` formats.
-
-- **`.pkl` / `.joblib`** → loaded as tabular model  
-  Must implement `predict_proba`. Compatible with sklearn, XGBoost, LightGBM, etc.
-
-If no files are found, both models run in **demo mode** with random initialisation
-(for UI development and testing).
-
----
-
-## CSV Format
-
-```
-feature1,feature2,feature3,...
-1.23,4.56,7.89,...
+```powershell
+python -m pip install -r requirements.txt
+npm --prefix frontend ci
+npm --prefix frontend run build
+python run.py
 ```
 
-- First row: column headers
-- Second row: patient data values
-- All values must be numeric
-- Column names must match the tabular model's `feature_names_in_`
+For frontend development, keep `python run.py` running and use `npm --prefix frontend run dev` in a second terminal. Open http://127.0.0.1:5173. Vite proxies `/api` to the same real service on port 8000.
 
----
+## What works
 
-## Preprocessing
+- Manual entry of twelve clinical measurements, or a UTF-8 CSV containing exactly one patient row. The CSV template is available in the assessment form and at `/api/template.csv`.
+- PNG/JPEG uploads for the seven corneal imaging modalities, with file-size and image-content validation. Missing modalities are explicitly reported and zero-filled by the existing model preprocessing.
+- Clinical-only, imaging-only, and weighted combined assessments; configurable threshold and imaging weight; independent model outputs and data-quality feedback.
+- Actual clinical TreeSHAP contributions, imaging modality ablation, Grad-CAM, integrated gradients, and attention rollout.
+- Explanations grounded in the assessment and the local citation library. Retrieval and deterministic answers work without an external API key. Optional Gemini generation uses `GEMINI_API_KEY` in `.env`.
+- Printable assessment results and downloadable saved model-evaluation evidence. Assessment inputs remain available when navigating between views or retrying a failed request.
 
-Images are preprocessed identically to ImageNet-pretrained models:
+## Models and interpretation
 
-```python
-transforms.Resize((224, 224))
-transforms.ToTensor()
-transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+The clinical service loads `models/catboost_final_pipeline.pkl`; its stored development threshold is **0.4293**. The imaging service loads the original EfficientNet-B0 checkpoint at `models/model1.pth`, recovered from this repository's Git history. The separate XGBoost and EfficientNetV2-S experiments in the overview are evaluation reports, not alternate inference selections.
+
+Optional overrides are `KERATOSCAN_CLINICAL_MODEL` and `KERATOSCAN_IMAGE_MODEL`. Model artifacts must come from a trusted source because their serialization formats can execute code while loading.
+
+The current environment uses Python 3.14 and scikit-learn 1.9.0; the clinical pipeline was serialized with scikit-learn 1.6.1. This emits a compatibility warning. Integration checks confirm that the API agrees with the saved pipeline's direct predictions in this environment; they do not establish equivalence with the original training environment. Reproducing published evaluation claims requires the training environment and independent model validation.
+
+**Research use only.** Model probabilities are not a diagnosis. The interface preserves checkpoint, dataset, missing-input, and interpretation limitations alongside results.
+
+## API and verification
+
+`server.py` provides `/api/status`, `/api/template.csv`, `/api/analyze`, and `/api/explain/query`, plus the compiled website. The service binds to localhost by default. Submitted measurements and maps are not saved to a patient database; responses use `Cache-Control: no-store`. Without an external generation key, assessment and explanation processing remains local.
+
+```powershell
+python -m pip install -r requirements-dev.txt
+python -X utf8 -m pytest tests/test_server.py -q -p no:cacheprovider
+npm --prefix frontend run build
 ```
 
----
-
-## Ensemble Fusion
-
-```
-final_prob = image_weight × p_image + tabular_weight × p_tabular
-```
-
-Weights are normalised to sum to 1.0. Default: 65% image / 35% tabular.
-Adjust in the sidebar slider.
-
----
-
-## Gemini Integration
-
-Enter your Gemini API key (from [aistudio.google.com](https://aistudio.google.com)) in the sidebar.
-
-- Key is stored in Streamlit session state only
-- Never logged or persisted
-- Uses `gemini-1.5-flash` model for speed and cost efficiency
-- Prompt includes model probabilities, severity, top modalities, and top features
-
----
-
-## Explainability
-
-| Feature               | Source                    |
-|-----------------------|---------------------------|
-| Grad-CAM heatmaps     | Per-modality encoder (last conv layer) |
-| Modality importance   | Cross-modal transformer attention weights |
-| Feature importance    | Tabular model `feature_importances_` or `coef_` |
-
----
-
-## Disclaimer
-
-> **This tool is for research and educational use only.**  
-> It is not a CE-marked or FDA-cleared medical device.  
-> All outputs must be reviewed by a qualified ophthalmologist.  
-> Never use this system as the sole basis for clinical decisions.
+The integration suite exercises the actual model artifacts, direct-prediction parity, combined fusion, image attribution output, grounded explanations, invalid inputs, CSV handling, and production page serving. Browser verification is documented in `frontend/test/verification.md`.

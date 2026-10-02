@@ -1,0 +1,42 @@
+[
+  {
+    "id": "global-consensus",
+    "title": "Global consensus on keratoconus and ectatic diseases",
+    "citation": "Gomes et al., Cornea, 2015",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/25738235/",
+    "topics": ["diagnosis", "tomography", "progression", "management", "referral"],
+    "text": "Keratoconus assessment should integrate corneal shape, posterior surface and pachymetric distribution rather than rely on a single measurement. Progression requires change over time and specialist clinical correlation."
+  },
+  {
+    "id": "multimodal-diagnostics",
+    "title": "Multimodal diagnostics for keratoconus and ectatic corneal diseases",
+    "citation": "Ambrósio et al., 2023",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/37919821/",
+    "topics": ["tomography", "pachymetry", "curvature", "elevation", "biomechanics", "screening"],
+    "text": "Screening and diagnosis benefit from multimodal evaluation that combines corneal tomography, thickness distribution, elevation, curvature and, where available, biomechanical information. Individual indices should be interpreted in context."
+  },
+  {
+    "id": "device-repeatability",
+    "title": "Repeatability and agreement between corneal imaging devices",
+    "citation": "Gokul et al., 2023",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/37890110/",
+    "topics": ["device", "repeatability", "kmax", "pachymetry", "monitoring", "domain shift"],
+    "text": "Keratometry and pachymetry measurements can differ across imaging technologies. Serial monitoring is most interpretable when acquisition quality and device consistency are considered."
+  },
+  {
+    "id": "keralink",
+    "title": "KERALINK randomized controlled trial",
+    "citation": "Larkin et al., Ophthalmology, 2021",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/33892046/",
+    "topics": ["progression", "cross-linking", "young", "treatment", "referral"],
+    "text": "In young patients with progressive keratoconus, corneal cross-linking reduced progression compared with standard care. A screening result alone does not establish progression or treatment eligibility."
+  },
+  {
+    "id": "treatment-algorithm",
+    "title": "Keratoconus treatment algorithm",
+    "citation": "Andreanos et al., Ophthalmology and Therapy, 2017",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/28755306/",
+    "topics": ["management", "contact lens", "cross-linking", "surgery", "visual rehabilitation"],
+    "text": "Management depends on progression, visual function, corneal characteristics and patient needs. Options for visual rehabilitation and disease stabilization serve different purposes and require specialist assessment."
+  }
+]

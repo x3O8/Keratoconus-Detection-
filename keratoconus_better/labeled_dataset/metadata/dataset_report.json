@@ -1,0 +1,23 @@
+{
+  "patients": 744,
+  "eye_samples": 1407,
+  "images": 5628,
+  "class_counts_patients": {
+    "normal": 446,
+    "keratoconus": 298
+  },
+  "class_counts_eyes": {
+    "normal": 886,
+    "keratoconus": 521
+  },
+  "split_counts_eyes": {
+    "train": 1128,
+    "test": 279
+  },
+  "skipped_missing_eye_folders": [],
+  "resolved_id_aliases": {
+    "3E+132": "3E132"
+  },
+  "duplicate_csv_patient_eye_rows_removed_from_image_manifest": 47,
+  "transfer_mode": "copy"
+}

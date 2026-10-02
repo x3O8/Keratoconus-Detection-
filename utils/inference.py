@@ -1,283 +1,331 @@
-"""
-Inference — image model, tabular model, ensemble fusion, and Grad-CAM.
-"""
+"""Inference and patient-specific explainability for both production models."""
 
-import torch
-import torch.nn.functional as F
+from __future__ import annotations
+
+from typing import Dict
+
+import cv2
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Optional, Tuple
-import streamlit as st
-import cv2
-from PIL import Image
+import torch
+import torch.nn.functional as F
+
+from utils.model_loader import CLINICAL_FEATURES, FEATURE_METADATA, MODALITIES
 
 
-MODALITIES = ["CT_A", "EC_A", "EC_P", "Elv_A", "Elv_P", "Sag_A", "Sag_P"]
-CLASS_NAMES = ["Normal", "Keratoconus"]
+def _classification(kc_probability: float, threshold: float) -> dict:
+    positive = kc_probability >= threshold
+    return {
+        "keratoconus_probability": float(kc_probability),
+        "normal_probability": float(1 - kc_probability),
+        "screen_positive": positive,
+        "predicted_label": "Keratoconus" if positive else "Normal / non-KC",
+        "threshold": float(threshold),
+    }
 
 
-# ── Image Model Inference ────────────────────────────────────────────────────
+def _image_batch(image_tensors: Dict[str, torch.Tensor], device: torch.device) -> torch.Tensor:
+    zero = torch.zeros(1, 3, 224, 224, device=device)
+    ordered = []
+    for modality in MODALITIES:
+        tensor = image_tensors.get(modality)
+        ordered.append(tensor.to(device) if tensor is not None else zero)
+    return torch.stack([tensor.squeeze(0) for tensor in ordered], dim=0).unsqueeze(0)
+
 
 def run_image_inference(
     model,
     image_tensors: Dict[str, torch.Tensor],
     device: torch.device,
+    threshold: float = 0.5,
 ) -> Dict:
-    """
-    Run forward pass on available modalities.
-    Missing modalities are substituted with zero tensors.
+    """Run the image model and one-pass modality ablation analysis.
 
-    Returns dict with: prob, predicted_class, confidence, modality_weights.
+    The image training notebook defines class index 0 as Keratoconus and class
+    index 1 as Normal/Suspect. Keeping that mapping explicit prevents accidental
+    probability inversion.
     """
+    if model is None:
+        raise RuntimeError("The image model is not available.")
     model.eval()
-    dummy = torch.zeros(1, 3, 224, 224, device=device)
+    full = _image_batch(image_tensors, device)
+    uploaded = [modality for modality in MODALITIES if modality in image_tensors]
 
-    inputs = []
-    for mod in MODALITIES:
-        if mod in image_tensors and image_tensors[mod] is not None:
-            inputs.append(image_tensors[mod].to(device))
-        else:
-            inputs.append(dummy)
+    variants = [full]
+    for modality in uploaded:
+        ablated = full.clone()
+        ablated[:, MODALITIES.index(modality)] = 0
+        variants.append(ablated)
+    batch = torch.cat(variants, dim=0)
 
-    with torch.no_grad():
-        try:
-            logits, attn_weights, spatial_feats = model(inputs)
-            probs = F.softmax(logits, dim=-1).squeeze(0).cpu().numpy()
-        except Exception as e:
-            # Fallback if architecture mismatch
-            st.warning(f"Image model inference error: {e}. Using random scores (demo).")
-            probs = np.array([0.35, 0.65])
-            attn_weights = torch.ones(1, len(MODALITIES)) / len(MODALITIES)
-            spatial_feats = [None] * len(MODALITIES)
+    with torch.inference_mode():
+        probabilities = F.softmax(model(batch), dim=-1).cpu().numpy()
 
-    predicted_class = int(np.argmax(probs))
-    attn_np = attn_weights.squeeze(0).cpu().numpy()
+    kc_probability = float(probabilities[0, 0])
+    ablation_impacts = {
+        modality: float(kc_probability - probabilities[index + 1, 0])
+        for index, modality in enumerate(uploaded)
+    }
+    gates = torch.sigmoid(model.attention_fusion.modality_gate).detach().cpu().numpy().reshape(-1)
+    gates = gates / gates.sum()
 
     return {
-        "probs": probs,
-        "predicted_class": predicted_class,
-        "predicted_label": CLASS_NAMES[predicted_class],
-        "confidence": float(probs[predicted_class]),
-        "keratoconus_prob": float(probs[1]),
-        "normal_prob": float(probs[0]),
-        "modality_weights": {mod: float(w) for mod, w in zip(MODALITIES, attn_np)},
-        "spatial_feats": spatial_feats,
-        "inputs": inputs,
+        **_classification(kc_probability, threshold),
+        "uploaded_modalities": uploaded,
+        "missing_modalities": [modality for modality in MODALITIES if modality not in image_tensors],
+        "input_completeness": len(uploaded) / len(MODALITIES),
+        "modality_ablation": ablation_impacts,
+        "learned_modality_gates": dict(zip(MODALITIES, gates.astype(float).tolist())),
     }
 
 
-# ── Tabular Model Inference ──────────────────────────────────────────────────
-
-def run_tabular_inference(model, df: pd.DataFrame) -> Dict:
-    """
-    Run sklearn-compatible tabular model inference.
-
-    Returns dict with: prob, predicted_class, confidence, feature_importance.
-    """
-    try:
-        proba = model.predict_proba(df)
-        probs = proba[0]
-        if len(probs) == 1:
-            probs = np.array([1 - probs[0], probs[0]])
-    except Exception as e:
-        st.warning(f"Tabular model inference error: {e}. Using demo scores.")
-        probs = np.array([0.3, 0.7])
-
-    predicted_class = int(np.argmax(probs))
-
-    # Feature importance
-    feature_importance = _get_feature_importance(model, df)
-
+def run_tabular_inference(model, frame: pd.DataFrame, threshold: float = 0.5) -> Dict:
+    if model is None:
+        raise RuntimeError("The clinical model is not available.")
+    ordered = frame[CLINICAL_FEATURES].astype(float)
+    # The current clinical artifact is a scikit-learn Pipeline. Preserve the
+    # feature names and order instead of converting to a raw NumPy array.
+    probabilities = np.asarray(model.predict_proba(ordered))[0]
+    positive_index = list(getattr(model, "classes_", [0, 1])).index(1)
+    kc_probability = float(probabilities[positive_index])
+    explanation = explain_clinical_model(model, ordered)
     return {
-        "probs": probs,
-        "predicted_class": predicted_class,
-        "predicted_label": CLASS_NAMES[predicted_class],
-        "confidence": float(probs[predicted_class]),
-        "keratoconus_prob": float(probs[1]),
-        "normal_prob": float(probs[0]),
-        "feature_importance": feature_importance,
+        **_classification(kc_probability, threshold),
+        "feature_values": {name: float(ordered.iloc[0][name]) for name in CLINICAL_FEATURES},
+        "explanation": explanation,
     }
 
 
-def _get_feature_importance(model, df: pd.DataFrame) -> Optional[Dict]:
-    """Extract feature importance from various sklearn model types."""
+def explain_clinical_model(model, frame: pd.DataFrame) -> dict:
+    """Return TreeSHAP contributions for the supported clinical model artifact."""
     try:
-        # Direct attribute
-        clf = model
-        if hasattr(model, "named_steps"):
-            for step in reversed(list(model.named_steps.values())):
-                if hasattr(step, "feature_importances_") or hasattr(step, "coef_"):
-                    clf = step
-                    break
-
-        features = df.columns.tolist()
-
-        if hasattr(clf, "feature_importances_"):
-            importances = clf.feature_importances_
-        elif hasattr(clf, "coef_"):
-            importances = np.abs(clf.coef_[0] if clf.coef_.ndim > 1 else clf.coef_)
+        values = frame[CLINICAL_FEATURES].to_numpy(dtype=np.float32)
+        if hasattr(model, "shap_contributions"):
+            contributions = model.shap_contributions(values)[0]
         else:
-            # Permutation-style approximation
-            importances = np.random.dirichlet(np.ones(len(features)))
+            steps = getattr(model, "named_steps", {})
+            estimator = steps.get("model", model)
+            imputer = steps.get("imputer")
+            transformed = imputer.transform(frame) if imputer is not None else values
+            if estimator.__class__.__name__ == "CatBoostClassifier":
+                from catboost import Pool
 
-        if len(importances) != len(features):
-            importances = np.random.dirichlet(np.ones(len(features)))
+                contributions = estimator.get_feature_importance(
+                    Pool(transformed, feature_names=CLINICAL_FEATURES),
+                    type="ShapValues",
+                )[0]
+            else:
+                import xgboost as xgb
 
-        importance_norm = importances / (importances.sum() + 1e-9)
-        return dict(zip(features, importance_norm.tolist()))
-
+                contributions = estimator.get_booster().predict(
+                    xgb.DMatrix(transformed, feature_names=CLINICAL_FEATURES), pred_contribs=True
+                )[0]
+        feature_contributions = contributions[:-1]
+        base_value = float(contributions[-1])
     except Exception:
-        features = df.columns.tolist()
-        raw = np.random.dirichlet(np.ones(len(features)))
-        return dict(zip(features, raw.tolist()))
+        feature_contributions = np.zeros(len(CLINICAL_FEATURES), dtype=float)
+        base_value = 0.0
 
+    items = []
+    for name, contribution in zip(CLINICAL_FEATURES, feature_contributions):
+        meta = FEATURE_METADATA[name]
+        items.append({
+            "feature": name,
+            "label": meta["label"],
+            "unit": meta["unit"],
+            "value": float(frame.iloc[0][name]),
+            "contribution": float(contribution),
+            "direction": "toward_keratoconus" if contribution > 0 else "toward_normal",
+        })
+    items.sort(key=lambda item: abs(item["contribution"]), reverse=True)
 
-# ── Ensemble Fusion ──────────────────────────────────────────────────────────
+    positive = [item for item in items if item["contribution"] > 0][:3]
+    protective = [item for item in items if item["contribution"] < 0][:2]
+    if positive:
+        positive_names = ", ".join(item["label"].lower() for item in positive)
+        summary = f"The clinical model was pushed most toward keratoconus by {positive_names}."
+    else:
+        summary = "No clinical feature strongly pushed this prediction toward keratoconus."
+    if protective:
+        normal_names = ", ".join(item["label"].lower() for item in protective)
+        summary += f" Factors pushing toward a normal result included {normal_names}."
+
+    estimator = getattr(model, "named_steps", {}).get("model", model)
+    global_importance = getattr(estimator, "feature_importances_", np.zeros(len(CLINICAL_FEATURES)))
+    global_importance = np.asarray(global_importance, dtype=float)
+    if global_importance.sum() > 0:
+        global_importance = global_importance / global_importance.sum()
+
+    return {
+        "method": "TreeSHAP",
+        "scale": "raw model margin (log-odds)",
+        "base_value": base_value,
+        "prediction_margin": float(base_value + feature_contributions.sum()),
+        "summary": summary,
+        "contributions": items,
+        "global_importance": dict(zip(CLINICAL_FEATURES, global_importance.astype(float).tolist())),
+    }
+
 
 def ensemble_fusion(
-    image_result: Dict,
-    tabular_result: Dict,
+    image_result: Dict | None,
+    tabular_result: Dict | None,
     image_weight: float = 0.65,
-    tabular_weight: float = 0.35,
+    threshold: float = 0.5,
 ) -> Dict:
-    """
-    Weighted probability fusion of image and tabular model outputs.
-    """
-    w_img = image_weight / (image_weight + tabular_weight)
-    w_tab = tabular_weight / (image_weight + tabular_weight)
+    if image_result is None and tabular_result is None:
+        raise ValueError("At least one model result is required.")
 
-    img_probs = np.array(image_result["probs"])
-    tab_probs = np.array(tabular_result["probs"])
-
-    # Align to 2-class if needed
-    if len(img_probs) < 2:
-        img_probs = np.array([1 - img_probs[0], img_probs[0]])
-    if len(tab_probs) < 2:
-        tab_probs = np.array([1 - tab_probs[0], tab_probs[0]])
-
-    fused_probs = w_img * img_probs + w_tab * tab_probs
-    predicted_class = int(np.argmax(fused_probs))
-
-    severity = _estimate_severity(float(fused_probs[1]))
+    if image_result is not None and tabular_result is not None:
+        image_weight = min(1.0, max(0.0, image_weight))
+        clinical_weight = 1 - image_weight
+        probability = (
+            image_weight * image_result["keratoconus_probability"]
+            + clinical_weight * tabular_result["keratoconus_probability"]
+        )
+        agreement = image_result["screen_positive"] == tabular_result["screen_positive"]
+        method = "weighted_fusion"
+    elif image_result is not None:
+        probability = image_result["keratoconus_probability"]
+        image_weight, clinical_weight = 1.0, 0.0
+        agreement = None
+        method = "image_only"
+    else:
+        probability = tabular_result["keratoconus_probability"]
+        image_weight, clinical_weight = 0.0, 1.0
+        agreement = None
+        method = "clinical_only"
 
     return {
-        "probs": fused_probs,
-        "predicted_class": predicted_class,
-        "predicted_label": CLASS_NAMES[predicted_class],
-        "confidence": float(fused_probs[predicted_class]),
-        "keratoconus_prob": float(fused_probs[1]),
-        "normal_prob": float(fused_probs[0]),
-        "image_contribution": float(w_img * img_probs[1]),
-        "tabular_contribution": float(w_tab * tab_probs[1]),
-        "image_weight": w_img,
-        "tabular_weight": w_tab,
-        "severity": severity,
+        **_classification(float(probability), threshold),
+        "method": method,
+        "image_weight": image_weight,
+        "clinical_weight": clinical_weight,
+        "models_agree": agreement,
+        "review_priority": _review_priority(float(probability), threshold, agreement),
     }
 
 
-def _estimate_severity(kc_prob: float) -> str:
-    if kc_prob < 0.4:
-        return "Unlikely"
-    elif kc_prob < 0.55:
-        return "Borderline"
-    elif kc_prob < 0.70:
-        return "Mild"
-    elif kc_prob < 0.85:
-        return "Moderate"
-    else:
-        return "Severe"
+def _review_priority(probability: float, threshold: float, agreement: bool | None) -> str:
+    if agreement is False or abs(probability - threshold) < 0.1:
+        return "Priority review — borderline or discordant model evidence"
+    if probability >= threshold:
+        return "Ophthalmologist review recommended — screen positive"
+    return "Routine clinician review — screen negative"
 
 
-# ── Grad-CAM ────────────────────────────────────────────────────────────────
+def compute_gradcam(model, image_tensors: Dict[str, torch.Tensor], device: torch.device) -> Dict[str, np.ndarray]:
+    """Compute a patient-specific Grad-CAM for every uploaded modality."""
+    if model is None or not image_tensors:
+        return {}
 
-class GradCAMHook:
-    """Lightweight Grad-CAM implementation using PyTorch hooks."""
-    def __init__(self, model, target_layer):
-        self.gradients = None
-        self.activations = None
-        self._fwd_hook = target_layer.register_forward_hook(self._save_activation)
-        self._bwd_hook = target_layer.register_full_backward_hook(self._save_gradient)
+    activations = None
+    gradients = None
 
-    def _save_activation(self, module, input, output):
-        self.activations = output.detach()
+    def forward_hook(_module, _inputs, output):
+        nonlocal activations
+        activations = output
 
-    def _save_gradient(self, module, grad_input, grad_output):
-        self.gradients = grad_output[0].detach()
+    def backward_hook(_module, _grad_input, grad_output):
+        nonlocal gradients
+        gradients = grad_output[0]
 
-    def remove(self):
-        self._fwd_hook.remove()
-        self._bwd_hook.remove()
+    target_layer = model.backbone[-1]
+    forward_handle = target_layer.register_forward_hook(forward_hook)
+    backward_handle = target_layer.register_full_backward_hook(backward_hook)
+    inputs = _image_batch(image_tensors, device).requires_grad_(True)
 
-    def compute(self) -> Optional[np.ndarray]:
-        if self.gradients is None or self.activations is None:
-            return None
-        weights = self.gradients.mean(dim=(2, 3), keepdim=True)
-        cam = (weights * self.activations).sum(dim=1).squeeze()
-        cam = F.relu(cam).cpu().numpy()
-        if cam.max() > 0:
-            cam = (cam - cam.min()) / (cam.max() - cam.min() + 1e-8)
-        return cam
+    try:
+        model.eval()
+        model.zero_grad(set_to_none=True)
+        logits = model(inputs)
+        logits[0, 0].backward()
+        weights = gradients.mean(dim=(2, 3), keepdim=True)
+        cams = F.relu((weights * activations).sum(dim=1)).detach().cpu().numpy()
+        result = {}
+        for index, modality in enumerate(MODALITIES):
+            if modality not in image_tensors:
+                continue
+            cam = cams[index]
+            minimum, maximum = float(cam.min()), float(cam.max())
+            result[modality] = (cam - minimum) / (maximum - minimum + 1e-8)
+        return result
+    finally:
+        forward_handle.remove()
+        backward_handle.remove()
 
 
-def compute_gradcam(
+def compute_integrated_gradients(
     model,
     image_tensors: Dict[str, torch.Tensor],
     device: torch.device,
-    target_class: int = 1,
-) -> Dict[str, Optional[np.ndarray]]:
-    """
-    Compute Grad-CAM heatmaps for each modality.
-    """
-    gradcam_maps = {}
-    dummy = torch.zeros(1, 3, 224, 224, device=device)
+    steps: int = 8,
+) -> Dict[str, np.ndarray]:
+    """Integrated Gradients for the KC logit using a zero-map baseline.
 
-    for i, mod in enumerate(MODALITIES):
-        if mod not in image_tensors or image_tensors[mod] is None:
-            gradcam_maps[mod] = None
+    The compact step count keeps interactive latency manageable. Attribution is
+    aggregated across RGB channels and normalized independently per modality.
+    """
+    if model is None or not image_tensors:
+        return {}
+    model.eval()
+    inputs = _image_batch(image_tensors, device)
+    baseline = torch.zeros_like(inputs)
+    gradient_sum = torch.zeros_like(inputs)
+    alphas = torch.linspace(0.0, 1.0, steps + 1, device=device)[1:]
+    for alpha in alphas:
+        interpolated = (baseline + alpha * (inputs - baseline)).detach().requires_grad_(True)
+        model.zero_grad(set_to_none=True)
+        kc_logit = model(interpolated)[0, 0]
+        gradient = torch.autograd.grad(kc_logit, interpolated, retain_graph=False)[0]
+        gradient_sum += gradient
+    attribution = ((inputs - baseline) * gradient_sum / len(alphas)).abs().sum(dim=2)[0]
+    result = {}
+    for index, modality in enumerate(MODALITIES):
+        if modality not in image_tensors:
             continue
-
-        try:
-            model.eval()
-            target_layer = model.encoders[i].features[-1]  # last conv layer
-            hook = GradCAMHook(model, target_layer)
-
-            inputs = []
-            for j, m in enumerate(MODALITIES):
-                if m in image_tensors and image_tensors[m] is not None:
-                    inp = image_tensors[m].to(device).requires_grad_(True)
-                else:
-                    inp = dummy.clone().requires_grad_(True)
-                inputs.append(inp)
-
-            logits, _, _ = model(inputs)
-            model.zero_grad()
-            score = logits[0, target_class]
-            score.backward()
-
-            cam = hook.compute()
-            hook.remove()
-
-            if cam is not None:
-                gradcam_maps[mod] = cam
-            else:
-                gradcam_maps[mod] = None
-
-        except Exception as e:
-            gradcam_maps[mod] = None
-
-    return gradcam_maps
+        heat = attribution[index].detach().cpu().numpy()
+        low, high = float(heat.min()), float(heat.max())
+        result[modality] = (heat - low) / (high - low + 1e-8)
+    return result
 
 
-def overlay_gradcam(
-    original_img: np.ndarray,
-    cam: np.ndarray,
-    alpha: float = 0.45,
-    colormap: int = cv2.COLORMAP_JET,
-) -> np.ndarray:
-    """Overlay Grad-CAM heatmap on original image."""
-    h, w = original_img.shape[:2]
-    cam_resized = cv2.resize(cam, (w, h))
-    heatmap = cv2.applyColorMap((cam_resized * 255).astype(np.uint8), colormap)
+def compute_attention_rollout(model, image_tensors: Dict[str, torch.Tensor], device: torch.device) -> dict:
+    """Expose the single-layer modality self-attention as a residual rollout."""
+    if model is None or not image_tensors:
+        return {"modalities": MODALITIES, "matrix": [], "importance": {}}
+    model.eval()
+    with torch.inference_mode():
+        features = model.extract_features_batch(_image_batch(image_tensors, device))
+        attention = model.attention_fusion
+        normalized = attention.norm(features)
+        batch, modalities, _ = normalized.shape
+
+        def heads(value):
+            return value.view(batch, modalities, attention.n_heads, attention.head_dim).permute(0, 2, 1, 3)
+
+        queries = heads(attention.q_proj(normalized))
+        keys = heads(attention.k_proj(normalized))
+        weights = torch.softmax(torch.matmul(queries, keys.transpose(-2, -1)) * attention.scale, dim=-1)
+        weights = weights.mean(dim=1)[0]
+        rollout = weights + torch.eye(modalities, device=device)
+        rollout = rollout / rollout.sum(dim=-1, keepdim=True)
+        gates = torch.sigmoid(attention.modality_gate)[0, :, 0]
+        importance = rollout.mean(dim=0) * gates
+        uploaded_mask = torch.tensor([1.0 if name in image_tensors else 0.0 for name in MODALITIES], device=device)
+        importance = importance * uploaded_mask
+        importance = importance / (importance.sum() + 1e-8)
+    return {
+        "modalities": MODALITIES,
+        "matrix": rollout.cpu().numpy().astype(float).tolist(),
+        "importance": dict(zip(MODALITIES, importance.cpu().numpy().astype(float).tolist())),
+        "note": "Single-layer residual attention rollout; attention weight is not causal importance.",
+    }
+
+
+def overlay_gradcam(original: np.ndarray, cam: np.ndarray, alpha: float = 0.42) -> np.ndarray:
+    height, width = original.shape[:2]
+    resized = cv2.resize(cam, (width, height))
+    heatmap = cv2.applyColorMap(np.uint8(resized * 255), cv2.COLORMAP_JET)
     heatmap = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)
-    overlay = (alpha * heatmap + (1 - alpha) * original_img).astype(np.uint8)
-    return overlay
+    return np.uint8((1 - alpha) * original + alpha * heatmap)

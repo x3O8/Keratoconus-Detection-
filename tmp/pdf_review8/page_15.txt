@@ -1,0 +1,49 @@
+Multimodal Explainable DL for Keratoconus Detection 15
+95.10% sensitivity, 97.49% F1 score, and an AUROC of 0.9994 on its locked
+clinical test set. These findings indicate that corneal-map imaging and structured
+clinical variables each provide useful, complementary evidence for keratoconus
+screening.
+However, the combined late-fusion output has not yet been validated on a
+matched patient-eye cohort containing both image and clinical inputs. It should
+therefore be interpreted as a research workflow for integrating independently
+validated branch predictions, rather than as a separately validated multimodal
+clinical model. The system performs binary screening only: it does not provide
+validateddiseasestaging,severityestimation,progressionprediction,inter-ocular
+asymmetry detection, or treatment recommendations. Likewise, Grad-CAM, In-
+tegrated Gradients, attention weights, and SHAP values describe model be-
+haviour rather than biological causation.
+The current FastAPI and React dashboard is intended for research and
+decision-support use only. It provides branch-specific predictions, weighted fu-
+sion, explanation panels, uncertainty checks, and retrieval-based clinical context.
+The evidence-retrieval component uses a curated knowledge base with FAISS-
+based semantic retrieval and lexical fallback. Gemini-based, citation-constrained
+responses are optional when configured; otherwise, a deterministic grounded re-
+sponse is returned. Neither retrieved evidence nor generated text constitutes
+patient-specific medical advice.
+Future work should first establish a matched, prospective, multi-centre, longi-
+tudinal patient-eye cohort to validate the late-fusion strategy, assess calibration
+and uncertainty under scanner and population shift, and evaluate clinical utility
+against clinician decision-making. Additional priorities include pre-specified ab-
+lation studies of individual corneal maps and the multi-head modality-attention
+module; external validation across institutions and devices; systematic assess-
+ment of explanation stability; and expansion to clinically justified longitudinal
+outcomes only after repeat-visit data are available. Before any clinical deploy-
+ment, the system would also require robust privacy, security, usability, regulatory,
+and prospective clinical validation studies.
+Acknowledgements
+The authors gratefully acknowledge Sri Mata Amritanandamayi Devi (Amma),
+Chancellor, Amrita Vishwa Vidyapeetham, for her inspiration and financial sup-
+port toward this publication.
+References
+1. Abnar, S., Zuidema, W.: Quantifying attention flow in transformers. In: Proceed-
+ings of the 58th Annual Meeting of the Association for Computational Linguistics.
+pp. 4190–4197 (2020)
+2. Alqazaz, A.T., Abdullah, M.A.M., Saeed, B.A.: Efficient keratoconus classification
+using quantized grayscale tomography and a lightweight cnn. In: Beyond Tech-
+nology Summit on Informatics International Conference (BTS-I2C). IEEE (2025).
+https://doi.org/10.1109/BTS-I2C67944.2025.11399514
+3. Ani, R., Krishna, S., Anju, N., Aslam, M.S., Deepa, O.S.: Iot based patient mon-
+itoring and diagnostic prediction tool using ensemble classifier. In: 2017 Inter-
+national Conference on Advances in Computing, Communications and Informat-
+ics (ICACCI). pp. 1588–1593. Udupi, India (2017).https://doi.org/10.1109/
+ICACCI.2017.8126068

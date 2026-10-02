@@ -1,0 +1,4 @@
+{
+  "knowledge_sha256": "ac957c171291ba6c91040874b6c2cd6f795c36c079ae959819f01c762746bc53",
+  "embedding_model": "sentence-transformers/all-MiniLM-L6-v2"
+}

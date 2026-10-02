@@ -1,0 +1,64 @@
+14 E Abhijith Krishna et al.
+Table 8.Dashboard Modules and Technologies
+Module Function Technology
+Data entry Uploads up to seven corneal maps and/or a one-
+row clinical CSV; permits single-modality analysis
+React frontend +
+FastAPI
+Prediction dis-
+play
+Reports image, clinical, and weighted-fusion
+screening probabilities, thresholds, weights, and
+branch agreement
+EfficientNet-B0 +
+XGBoost
+Image explana-
+tion
+Produces Grad-CAM overlays, Integrated Gradi-
+ents, and modality-attention rollout
+PyTorch
+Clinical explana-
+tion
+Ranks patient-specific clinical feature contribu-
+tions
+TreeSHAP
+Evidence sup-
+port
+Retrieves curated clinical passages and provides
+groundedresponseswithoptionalLLMgeneration
+Sentence embeddings
++ FAISS + optional
+Gemini
+When both branches are available, it displays the weighted fusion probability,
+the selected decision threshold, the image and clinical weights, and whether the
+two branch decisions agree. The system performs binary keratoconus screening;
+it does not produce Normal/Suspect/Keratoconus three-class labels or severity,
+progression, or asymmetry scores.
+Step 3 – Inspect Model Explanations.For the image branch, the inter-
+face presents Grad-CAM overlays, Integrated Gradients maps, and a single-layer
+residual attention rollout across the supplied corneal-map modalities. For the
+clinical branch, TreeSHAP contributions rank the patient-specific clinical vari-
+ables that increased or decreased the model output. These explanations describe
+model behaviour and should not be interpreted as causal or diagnostic evidence.
+Step 4 – Retrieve Supporting Evidence.The dashboard retrieves relevant
+passages from a curated keratoconus knowledge base using a FAISS-based seman-
+tic index with lexical fallback. It also presents a deterministic decision explana-
+tioncontainingmodelevidence,uncertaintychecks,andsuggestedclinicalreview.
+An optional question-answering feature can use Gemini for citation-constrained
+generation when configured; otherwise, the dashboard returns a deterministic
+grounded response. Retrieved literature provides contextual information and not
+patient-specific treatment advice.
+Table 8 summarises the principal dashboard modules.
+9 Conclusion and Future Work
+This work presents KeratoScan, a multimodal, explainable research decision-
+supportworkflowforbinarykeratoconusscreening.Thesystemcombinesaseven-
+map EfficientNet-B0 image branch with four-head modality attention and a sep-
+arately trained, calibrated XGBoost clinical branch. Each branch can be used
+independently; when both inputs are available, their probabilities are combined
+through configurable late fusion. The interface also provides patient-specific
+Grad-CAM, Integrated Gradients, modality-attention, and TreeSHAP explana-
+tions, together with retrieval of relevant clinical evidence.
+The results show strong branch-level performance on their respective held-
+out test data. The seven-map EfficientNet-B0 image model achieved an accuracy
+of 94.00%, AUROC of 0.9904, and macro-F1 score of 0.9290 on the binary DS-
+1 test set (n= 150). The clinical XGBoost branch achieved 98.19% accuracy,

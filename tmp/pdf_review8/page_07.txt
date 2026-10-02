@@ -1,0 +1,43 @@
+Multimodal Explainable DL for Keratoconus Detection 7
+weights spatial regions, emphasising KC-pathological areas such as inferior steep-
+ening and posterior elevation peaks.
+XGBoost:Processes the biomechanical indices using the gradient-boosted
+decision-tree algorithm of Chen and Guestrin [6], providing calibrated probabil-
+ity estimates directly from structured clinical parameters. The ensemble layer
+then combines the image-model and tabular-model probabilities using learned
+weights.
+Multi-Head Output:Produces KC stage, a continuous severity and
+progression-risk score, and binary corneal asymmetry flags from the fused
+representation.
+4.3 Explainability and Reasoning Layer
+Explainability Layer:Integrated Gradients[26] attribute the prediction to in-
+put features by integrating gradients along the path from a baseline to the actual
+input, giving theoretically grounded, additive attributions;Attention Rollout[1]
+propagates attention weights across layers to identify the image regions globally
+relevant to each class decision; andGradCAM[23] heatmaps highlight the patho-
+logical corneal regions – inferior steepening, posterior elevation – contributing
+most to a given prediction.
+RAG System:An embedding-based retriever, orchestrated with LangChain
+over a FAISS similarity index [9], pulls domain-specific clinical passages relevant
+to the predicted stage and the model’s own XAI attributions. The retrieved
+evidence, the stage prediction, and the attribution scores are then passed as
+structured context to a Gemini LLM [28], which synthesises them into a con-
+cise four-to-five sentence clinical narrative – explicitly referencing the retrieved
+evidence and the flagged regions rather than generating a free-form summary.
+4.4 Output Layer
+Thesystemdeliverssixclinicallyactionableoutputs,drawnfromthethreepredic-
+tion heads and the reasoning layer described above: (1)KC Stage– the graded
+classification from Head 1; (2)Severity & Progression-Risk Estimate– a
+continuous score from Head 2 indicating current disease severity and urgency for
+follow-up; (3)Asymmetry Flag– the binary inter-ocular signal from Head 3;
+(4)Explanation– a clinically grounded LLM narrative; (5)Modality Impor-
+tance– per-modality attention weights quantifying relative contribution; and
+(6)Feature Importance– tabular biomarker rankings.
+5 Methodology
+5.1 Development Approach
+Development followed an iterative Agile lifecycle across six phases: (1) data col-
+lection and preprocessing, (2) exploratory data analysis and feature engineering,
+(3) model design and fine-tuning, (4) RAG integration, (5) evaluation and com-
+parative benchmarking, and (6) Streamlit dashboard deployment, with feature-
+importance results from Phase 5 looping back to prune noisy biomechanical
+indices before retraining the tabular model.

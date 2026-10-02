@@ -1,0 +1,17 @@
+{
+  "model_type": "CatBoostClassifier pipeline",
+  "validated_threshold": 0.4293,
+  "training_metadata": {
+    "source": "Kera-AI grouped clinical pipeline",
+    "task": "binary keratoconus screening",
+    "feature_count": 12,
+    "selection_rule": "highest five-fold patient-grouped CV AUROC",
+    "cv_auroc_mean": 0.9955,
+    "cv_auroc_std": 0.0041,
+    "locked_internal_test_auroc": 0.9983,
+    "locked_internal_test_auprc": 0.9972,
+    "threshold_source": "development out-of-fold Youden J",
+    "duplicate_resolution": "first row retained per patient_id and eye; requires clinical review",
+    "external_validation": "not performed"
+  }
+}

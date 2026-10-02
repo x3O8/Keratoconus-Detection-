@@ -1,0 +1,46 @@
+Multimodal Explainable Deep Learning
+Framework for Early Detection of Keratoconus
+E Abhijith Krishna1, Sandhiya Kennedy1, Akshay Reddy Velugati1, Jisha
+R.C.2, Krishna S.2, and Manjusha Nair M.2
+1 Department of Computer Science and Engineering
+Amrita School of Computing, Amrita Vishwa Vidyapeetham, Amritapuri, India
+{am.ai.u4aid23037, am.ai.u4aid23056,
+am.ai.u4aid23062}@am.students.amrita.edu
+2 Department of Computer Science and Applications,
+Amrita School of Computing, Amrita Vishwa Vidyapeetham, Amritapuri, India
+{jisha, krishna, manjushanair}@amrita.edu
+Abstract.Keratoconus (KC) is a progressive corneal ectatic disorder
+characterised by corneal thinning and irregular steepening, which can
+lead to visual impairment. Early detection remains challenging because
+subtle disease may not be readily identified from a single source of clini-
+cal evidence. This paper presents KeratoScan, an explainable research
+decision-support workflow for binary keratoconus screening that inte-
+grates corneal-map imaging and structured clinical measurements.
+The image branch processes seven corneal-map inputs using a shared
+EfficientNet-B0 backbone followed by four-head modality attention,
+while the clinical branch uses a calibrated XGBoost model operating on
+structured clinical variables. The branches can operate independently or,
+when both inputs are available, be combined through user-configurable
+late probability fusion. The system provides Grad-CAM and Integrated
+Gradients image attributions, modality-attention rollout, and TreeSHAP
+clinical-feature contributions to support inspection of model behaviour.
+A retrieval component returns relevant passages from a curated kerato-
+conus knowledge base; optional citation-constrained Gemini responses
+are available when configured.
+On the held-out binary DS-1 image test set (n= 150), the seven-map
+EfficientNet-B0 model achieved 94.00% accuracy, 0.9904 AUROC, and
+0.9290 macro-F1. On the locked clinical test set, XGBoost achieved
+98.19% accuracy, 95.10% sensitivity, 97.49% F1 score, and 0.9994 AU-
+ROC. The FastAPI and React dashboard displays branch-specific re-
+sults, weighted fusion, uncertainty checks, model explanations, and re-
+trieved clinical context. The combined late-fusion output has not yet
+been validated on a matched patient-eye multimodal cohort; accordingly,
+KeratoScan is presented as a research decision-support workflow rather
+than a clinically validated diagnostic, staging, progression-prediction, or
+treatment-recommendation system.
+Keywords:Keratoconus·EfficientNet-v2·Multimodal Fusion·Ex-
+plainable AI·RAG System·XGBoost·Corneal Topography·Streamlit
+Dashboard·Deep Learning
+1 Introduction
+Keratoconus (KC) is a bilateral, non-inflammatory, progressive ectatic disorder
+of the cornea. A healthy eye holds a smooth, dome-like corneal curvature that

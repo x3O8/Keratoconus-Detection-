@@ -1,0 +1,27 @@
+{
+  "purpose": "Exploratory external domain-shift validation; not a clinical validation.",
+  "checkpoint": "C:\\Users\\abhij\\Downloads\\keratoconus_complete_results\\models\\efficientnetv2_s\\fold_1\\best_model.pth",
+  "dataset_root": "D:\\desktop\\Keratoconus\\dataset\\archive\\Train_Validation sets\\Train_Validation sets",
+  "device": "cpu",
+  "model_input_mapping": {
+    "anterior": "EC_A",
+    "axial": "Sag_A",
+    "pachymetry": "CT_A",
+    "posterior": "EC_P"
+  },
+  "threshold_from_orbscan_validation": 0.019063040614128113,
+  "cases_evaluated": 300,
+  "normal_cases": 150,
+  "keratoconus_cases": 150,
+  "auroc": 0.9508,
+  "accuracy": 0.5,
+  "sensitivity": 1.0,
+  "specificity": 0.0,
+  "confusion_matrix": {
+    "tn": 0,
+    "fp": 150,
+    "fn": 0,
+    "tp": 150
+  },
+  "incomplete_cases_skipped": []
+}

@@ -1,0 +1,51 @@
+2 E Abhijith Krishna et al.
+focuses light precisely on the retina; in KC, localised stromal thinning lets the
+corneabulgeforwardintoanirregularcone,scatteringincominglightandproduc-
+ing progressively worsening myopia and irregular astigmatism. Left unmanaged,
+advanced KC can necessitate corneal transplantation and remains one of the
+leading indications for such surgery in young adults, with a reported prevalence
+ranging from 1 in 375 to 1 in 2,000 [8,31].
+Diagnosis today relies primarily on Placido-disc topography, Scheimpflug to-
+mography, and anterior-segment optical coherence tomography (OCT). These
+modalities are reliable once the cone is topographically apparent, but are demon-
+strably less sensitive to Forme Fruste Keratoconus (FFKC) and Subclinical Ker-
+atoconus (SKC) [31] – the stages at which biomechanical softening of the stroma
+routinely precedes any topographically visible change, and where expert graders
+have been shown to miss a meaningful fraction of subclinical cases [8,34].
+Early detection matters because it is the only point at which intervention
+can still change the disease trajectory. Corneal collagen cross-linking is currently
+the only treatment with proven efficacy in halting KC progression, and its ef-
+fectiveness declines once the cornea has already thinned and steepened substan-
+tially [8,12]. A screening tool that flags FFKC and SKC with high sensitivity,
+while also explaining why, therefore carries direct clinical value: it can turn a
+borderline case that a clinician might otherwise monitor and re-scan months
+later into an actionable referral today.
+Deep learning is well suited to this gap. Convolutional and attention-based
+architectures extract hierarchical representations directly from topographic im-
+agery that classical threshold-based indices cannot capture [21,24,33], while
+knowledge-drivenandretrieval-basedsystemscangroundamodel’soutputinthe
+same clinical evidence an ophthalmologist would consult [5,20]. Existing compu-
+tational approaches to KC detection, however, remain fragmented in three ways:
+image-only networks discard the structured biomechanical indices that clinicians
+already trust [7,22]; classical ensemble methods trained purely on tabular data
+cannot see topographic morphology at all [15,29]; and saliency-map explain-
+able AI (XAI) methods, while visually compelling, provide neither statistical
+coverage guarantees nor grounding in external clinical knowledge [13]. To our
+knowledge, no prior work combines multimodal fusion, multi-task clinical pro-
+filing, and knowledge-grounded reasoning within a single, clinically deployable
+pipeline.
+Problem Statement.Given multimodal corneal imaging data (topography im-
+ages and spatial map grids) alongside structured biomechanical indices, this work
+designs and implements a deep learning framework capable of detecting early-
+stage and subclinical keratoconus with high sensitivity and specificity, while
+producing clinically interpretable, evidence-grounded explanations suitable for
+integration into ophthalmic screening workflows.
+Contributions.This work makes four contributions:
+1.Unified Multimodal Architecture.EfficientNet-B0 with spatial atten-
+tion fusion processes corneal topography images and spatial map grids, while
+XGBoost handles structured biomechanical indices; a learned ensemble com-
+bines both modality streams into a single prediction.
+2.Multi-Head Prediction.A shared backbone simultaneously outputs KC
+stageclassification,acontinuousseverityandprogression-riskregression,and
+inter-ocular asymmetry via binary cross-entropy, enabling clinical profiling
+beyond static-stage grading alone.
